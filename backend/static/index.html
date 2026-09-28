@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CalcNotes – Notes de calcul</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .cell { transition: all 0.15s ease; }
+    .cell:hover { border-color: #94a3b8; }
+    .cell-active { border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59,130,246,0.3); }
+    .result { font-family: 'KaTeX_Main', serif; }
+    textarea { resize: vertical; min-height: 2.5rem; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">∑</div>
+        <div>
+          <h1 class="font-semibold text-lg leading-tight">CalcNotes</h1>
+          <p class="text-xs text-slate-500">Notes de calcul • v0.1</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="newNote()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium">
+          + Nouvelle note
+        </button>
+        <button onclick="saveNote()" id="btn-save" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg font-medium hidden">
+          💾 Sauvegarder
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 py-6 flex gap-6">
+    <!-- Sidebar -->
+    <aside class="w-64 flex-shrink-0 space-y-4">
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Notes</h2>
+        <div id="notes-list" class="space-y-1 max-h-[60vh] overflow-y-auto">
+          <p class="text-sm text-slate-400 italic">Chargement…</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Filtres</h2>
+        <input id="search-input" type="text" placeholder="Rechercher…" 
+               class="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+               oninput="loadNotes()">
+        <select id="category-filter" onchange="loadNotes()"
+                class="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Toutes catégories</option>
+        </select>
+      </div>
+    </aside>
+
+    <!-- Main editor -->
+    <main class="flex-1 min-w-0">
+      <div id="empty-state" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+        <div class="text-5xl mb-4">📝</div>
+        <h2 class="text-xl font-semibold mb-2">Aucune note sélectionnée</h2>
+        <p class="text-slate-500 mb-6">Créez une nouvelle note ou sélectionnez-en une dans la liste.</p>
+        <button onclick="newNote()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
+          Créer une note
+        </button>
+      </div>
+
+      <div id="editor" class="hidden space-y-4">
+        <!-- Meta -->
+        <div class="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+          <input id="note-title" type="text" placeholder="Titre de la note"
+                 class="w-full text-xl font-semibold border-0 focus:outline-none focus:ring-0 px-0"
+                 onchange="markDirty()">
+          <div class="flex flex-wrap gap-3 items-center">
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-slate-500">Catégorie</label>
+              <input id="note-category" type="text" value="Général"
+                     class="px-2 py-1 text-sm border border-slate-200 rounded-lg w-36 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                     onchange="markDirty()">
+            </div>
+            <div class="flex items-center gap-2 flex-1">
+              <label class="text-sm text-slate-500">Tags</label>
+              <input id="note-tags" type="text" placeholder="structure, béton, ELU…"
+                     class="flex-1 px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                     onchange="markDirty()">
+            </div>
+          </div>
+        </div>
+
+        <!-- Cells -->
+        <div id="cells-container" class="space-y-3"></div>
+
+        <!-- Add cell buttons -->
+        <div class="flex gap-2">
+          <button onclick="addCell('text')" class="px-3 py-1.5 text-sm bg-white border border-slate-200 hover:bg-slate-50 rounded-lg">
+            + Texte
+          </button>
+          <button onclick="addCell('calc')" class="px-3 py-1.5 text-sm bg-white border border-slate-200 hover:bg-slate-50 rounded-lg">
+            + Calcul
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const API = '/api';
+    let currentNote = null;
+    let cells = [];
+    let context = {};          // variables partagées entre cellules
+    let dirty = false;
+
+    // ---------- Utils ----------
+    function markDirty() {
+      dirty = true;
+      document.getElementById('btn-save').classList.remove('hidden');
+    }
+
+    function uuid() {
+      return 'c' + Math.random().toString(36).slice(2, 9);
+    }
+
+    // ---------- Notes list ----------
+    async function loadNotes() {
+      const q = document.getElementById('search-input').value;
+      const cat = document.getElementById('category-filter').value;
+      let url = `${API}/notes?`;
+      if (q) url += `q=${encodeURIComponent(q)}&`;
+      if (cat) url += `category=${encodeURIComponent(cat)}&`;
+
+      try {
+        const res = await fetch(url);
+        const notes = await res.json();
+        const list = document.getElementById('notes-list');
+        if (notes.length === 0) {
+          list.innerHTML = '<p class="text-sm text-slate-400 italic">Aucune note</p>';
+          return;
+        }
+        list.innerHTML = notes.map(n => `
+          <button onclick="openNote(${n.id})"
+                  class="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-slate-50 ${currentNote?.id === n.id ? 'bg-blue-50 text-blue-700 font-medium' : ''}">
+            <div class="truncate">${n.title}</div>
+            <div class="text-xs text-slate-400">${n.category} • ${new Date(n.updated_at).toLocaleDateString('fr')}</div>
+          </button>
+        `).join('');
+      } catch (e) {
+        document.getElementById('notes-list').innerHTML = '<p class="text-sm text-red-500">Erreur de connexion API</p>';
+      }
+    }
+
+    async function loadCategories() {
+      try {
+        const res = await fetch(`${API}/categories`);
+        const cats = await res.json();
+        const sel = document.getElementById('category-filter');
+        sel.innerHTML = '<option value="">Toutes catégories</option>' +
+          cats.map(c => `<option value="${c}">${c}</option>`).join('');
+      } catch (e) {}
+    }
+
+    // ---------- Note CRUD ----------
+    async function newNote() {
+      if (dirty && !confirm('Modifications non sauvegardées. Continuer ?')) return;
+      const res = await fetch(`${API}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Nouvelle note',
+          content: JSON.stringify([]),
+          category: 'Général',
+          tags: []
+        })
+      });
+      const note = await res.json();
+      currentNote = note;
+      cells = [];
+      context = {};
+      dirty = false;
+      renderEditor();
+      loadNotes();
+    }
+
+    async function openNote(id) {
+      if (dirty && !confirm('Modifications non sauvegardées. Continuer ?')) return;
+      const res = await fetch(`${API}/notes/${id}`);
+      currentNote = await res.json();
+      try {
+        cells = JSON.parse(currentNote.content || '[]');
+      } catch {
+        cells = [];
+      }
+      context = {};
+      dirty = false;
+      document.getElementById('btn-save').classList.add('hidden');
+      renderEditor();
+      // Re-évaluer toutes les cellules calc
+      for (const cell of cells) {
+        if (cell.type === 'calc' && cell.input) {
+          await evaluateCell(cell.id, false);
+        }
+      }
+      renderCells();
+      loadNotes();
+    }
+
+    async function saveNote() {
+      if (!currentNote) return;
+      const title = document.getElementById('note-title').value || 'Sans titre';
+      const category = document.getElementById('note-category').value || 'Général';
+      const tagsStr = document.getElementById('note-tags').value;
+      const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+
+      const res = await fetch(`${API}/notes/${currentNote.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content: JSON.stringify(cells),
+          category,
+          tags
+        })
+      });
+      currentNote = await res.json();
+      dirty = false;
+      document.getElementById('btn-save').classList.add('hidden');
+      loadNotes();
+      loadCategories();
+    }
+
+    // ---------- Editor rendering ----------
+    function renderEditor() {
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('editor').classList.remove('hidden');
+      document.getElementById('note-title').value = currentNote.title;
+      document.getElementById('note-category').value = currentNote.category || 'Général';
+      document.getElementById('note-tags').value = (currentNote.tags || []).map(t => t.name || t).join(', ');
+      renderCells();
+    }
+
+    function renderCells() {
+      const container = document.getElementById('cells-container');
+      if (cells.length === 0) {
+        container.innerHTML = '<p class="text-sm text-slate-400 italic py-4">Ajoutez une cellule Texte ou Calcul.</p>';
+        return;
+      }
+      container.innerHTML = cells.map((cell, idx) => {
+        if (cell.type === 'text') {
+          return `
+            <div class="cell bg-white rounded-xl border border-slate-200 p-4" id="cell-${cell.id}">
+              <div class="flex justify-between items-start mb-2">
+                <span class="text-xs font-medium text-slate-400 uppercase">Texte</span>
+                <button onclick="deleteCell('${cell.id}')" class="text-slate-400 hover:text-red-500 text-sm">✕</button>
+              </div>
+              <textarea class="w-full border-0 focus:outline-none text-sm leading-relaxed"
+                        oninput="updateCellInput('${cell.id}', this.value); markDirty()"
+                        placeholder="Écrivez ici…">${cell.input || ''}</textarea>
+            </div>`;
+        } else {
+          return `
+            <div class="cell bg-white rounded-xl border border-slate-200 p-4" id="cell-${cell.id}">
+              <div class="flex justify-between items-start mb-2">
+                <span class="text-xs font-medium text-blue-500 uppercase">Calcul</span>
+                <button onclick="deleteCell('${cell.id}')" class="text-slate-400 hover:text-red-500 text-sm">✕</button>
+              </div>
+              <div class="flex gap-2">
+                <input type="text" value="${(cell.input || '').replace(/"/g, '&quot;')}"
+                       class="flex-1 px-3 py-2 text-sm font-mono border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="ex: F = 150 * kN   ou   x**2 + 2*x"
+                       onkeydown="if(event.key==='Enter') evaluateCell('${cell.id}')"
+                       oninput="updateCellInput('${cell.id}', this.value); markDirty()">
+                <button onclick="evaluateCell('${cell.id}')"
+                        class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">
+                  ▶
+                </button>
+              </div>
+              <div id="result-${cell.id}" class="mt-3 ${cell.result ? '' : 'hidden'}">
+                ${cell.error
+                  ? `<div class="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">${cell.error}</div>`
+                  : `<div class="flex items-baseline gap-2 px-3 py-2 bg-slate-50 rounded-lg">
+                       <span class="text-slate-400 text-sm">=</span>
+                       <span class="result text-lg" id="latex-${cell.id}">${cell.result || ''}</span>
+                     </div>`
+                }
+              </div>
+            </div>`;
+        }
+      }).join('');
+
+      // Render KaTeX where possible
+      cells.forEach(cell => {
+        if (cell.type === 'calc' && cell.result_latex) {
+          const el = document.getElementById(`latex-${cell.id}`);
+          if (el) {
+            try {
+              katex.render(cell.result_latex, el, { throwOnError: false });
+            } catch (e) {
+              el.textContent = cell.result;
+            }
+          }
+        }
+      });
+    }
+
+    function addCell(type) {
+      const cell = { id: uuid(), type, input: '', result: null, result_latex: null, error: null };
+      cells.push(cell);
+      markDirty();
+      renderCells();
+      // Focus the new cell
+      setTimeout(() => {
+        const el = document.querySelector(`#cell-${cell.id} input, #cell-${cell.id} textarea`);
+        if (el) el.focus();
+      }, 50);
+    }
+
+    function updateCellInput(id, value) {
+      const cell = cells.find(c => c.id === id);
+      if (cell) cell.input = value;
+    }
+
+    function deleteCell(id) {
+      cells = cells.filter(c => c.id !== id);
+      markDirty();
+      renderCells();
+    }
+
+    async function evaluateCell(id, updateUI = true) {
+      const cell = cells.find(c => c.id === id);
+      if (!cell || !cell.input.trim()) return;
+
+      try {
+        const res = await fetch(`${API}/evaluate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ expression: cell.input, context })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          cell.result = data.result;
+          cell.result_latex = data.result_latex;
+          cell.error = null;
+          // Merge variables
+          Object.assign(context, data.variables || {});
+        } else {
+          cell.result = null;
+          cell.result_latex = null;
+          cell.error = data.error || 'Erreur';
+        }
+      } catch (e) {
+        cell.error = 'Erreur de connexion au serveur de calcul';
+      }
+
+      if (updateUI) {
+        markDirty();
+        renderCells();
+      }
+    }
+
+    // Init
+    loadNotes();
+    loadCategories();
+  </script>
+</body>
+</html>
